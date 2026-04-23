@@ -1,3 +1,8 @@
 *.csv
 *.txt
 *.tsv
+*.xlsx
+*.pptx
+*.png
+*.npz
+.DS_Store

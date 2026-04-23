@@ -1,3 +1,0 @@
-sub-47923038/ses-1/func/sub-47923038_ses-1_task-rest_acq-UC20220419EPI_bold.nii.gz - Error: Expecting 3 zoom values for ndim 3
-sub-06172311/ses-0/func/sub-06172311_ses-0_task-rest_acq-UC20120221EPI_bold.nii.gz - Error: Expecting 3 zoom values for ndim 3
-sub-06798423/ses-0/func/sub-06798423_ses-0_task-rest_acq-UC20220113EPI_bold.nii.gz - Error: Expecting 3 zoom values for ndim 3
