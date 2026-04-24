@@ -95,3 +95,4 @@ print(study_count)
 demos_0426 <- read_csv("/Users/ga0034de/github_dir/ROSMAP_proc/analysis/april26/mean_within_network_connectivity_240426.csv")
 
 demos_withinconn <- left_join(merged_df, demos_0426, by = c("sub_ses" = "timeseries"))
+write_csv(demos_withinconn, "demos_withinconn.csv")

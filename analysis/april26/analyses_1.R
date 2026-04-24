@@ -4,27 +4,9 @@ library(readr)
 library(stringr)
 library(tidyr)
 
-# mat_folder <- "/Users/ga0034de/Documents/rosmap_analyses_feb26/456parcels_fc"
-# 
-# 
-# 
-# names(conn_mats) <- sub("\\.csv$", "", basename(mat_files))
-# # initialize list
-# timeseries_list <- list()
-# 
-# for (f in ts_files) {
-#   # extract subject ID if needed
-#   sub_id <- sub(".*/(.*)456_timeseries\\.tsv$", "\\1", f)
-#   print(paste("Processing subject:", sub_id))
-#   ts <- read.delim(f)
-#   timeseries_list[[sub_id]] <- as.matrix(ts)
-# }
-
-rosmap_df <- read.csv("mean_within_conn_demos.csv")
-colnames(rosmap_df)
+demos_withinconn <- read.csv("demos_withinconn.csv")
+colnames(demos_withinconn)[3] <- "sub_ses"
 # filter columns that are networks
-networks_df <- rosmap_df %>%
-  select(8:14)
 
 # target network columns
 target_cols <- c(
@@ -33,11 +15,14 @@ target_cols <- c(
 )
 
 # predictors
-predictors <- c("mean_FD", "msex", "site")
+predictors <- c("mean_FD", "msex", "site", "age_scandate", "distortion_correction", "eyes")
 
 # ensure categorical variables are factors
-rosmap_df$msex <- factor(rosmap_df$msex)
-rosmap_df$site <- factor(rosmap_df$site)
+demos_withinconn$msex <- factor(demos_withinconn$msex)
+demos_withinconn$site <- factor(demos_withinconn$site)
+demos_withinconn$scanner <- factor(demos_withinconn$scanner)
+demos_withinconn$distortion_correction <- factor(demos_withinconn$distortion_correction)
+demos_withinconn$eyes <- factor(demos_withinconn$eyes)
 
 # container for results
 results <- list()
@@ -61,7 +46,7 @@ for (col in target_cols) {
   # depending on `col`
   model <- lm(
     reformulate(predictors, response = col),
-    data = rosmap_df
+    data = demos_withinconn
   )
   
   # --- EXTRACT EFFECT OF INTEREST ---
@@ -103,7 +88,7 @@ results_df$q_FD_star <- cut(
 print(results_df)
 print(model)
 # exclude those rows that have mean_FD > 0.3
-rosmap_df_filtered <- rosmap_df %>%
+demos_withinconn_filtered <- demos_withinconn %>%
   filter(mean_FD <= 0.25)
 
 results_filtered <- list()
@@ -112,7 +97,7 @@ for (col in target_cols) {
   
   model <- lm(
     reformulate(predictors, response = col),
-    data = rosmap_df_filtered
+    data = demos_withinconn_filtered
   )
   
   beta <- coef(model)["mean_FD"]
@@ -175,3 +160,6 @@ p2 <- ggplot(results_filtered_df, aes(x = network, y = beta_FD)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 print(p2)
+
+summary(model)
+alias(model)
