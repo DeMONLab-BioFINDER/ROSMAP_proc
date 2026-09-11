@@ -34,7 +34,7 @@ suppressPackageStartupMessages({
 })
 
 # -----------------------------------------------------------------------------
-# Analysis conventions
+# Predefined configs
 # -----------------------------------------------------------------------------
 NETWORK_TO_PLOT <- "Default"
 MIN_VISITS <- 2L
@@ -47,18 +47,23 @@ DX_LEVELS <- c("NCI", "MCI", "AD", "other")
 SYN_LEVELS <- c("not SyN", "SyN")
 
 SITE_COLORS <- c(
-  "BNK" = "#0072B2",
-  "MG" = "#E69F00",
-  "RIRC" = "#009E73",
-  "UC" = "#D55E00"
+  "BNK" = "#97b200",
+  "MG" = "#80d0ff",
+  "RIRC" = "#457947",
+  "UC" = "#7b59e2"
 )
 
 DIRECTION_COLORS <- c(
-  "up" = "#2C7BB6",
-  "down" = "#D7191C",
+  "up" = "#D7191C",
+  "down" = "#2C7BB6",
   "flat" = "grey60"
 )
 
+DX_COLORS <- c(
+  "NCI"="#63a5f0",
+  "MCI"="#c65600",
+  "AD"="#007425"
+)
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
@@ -142,8 +147,8 @@ prepare_dmn_data <- function(data, apply_fd_filter = FALSE) {
 
 fit_dmn_model <- function(data, label) {
   model <- lmerTest::lmer(
-    within_conn ~ years_from_baseline + mean_FD + msex + site +
-      age_bl + eyes + dcfdx + syn_bin +
+    within_conn ~ years_from_baseline*dcfdx + mean_FD + msex + site +
+      age_bl + eyes + syn_bin +
       (1 + years_from_baseline | sub_id),
     data = data,
     control = lme4::lmerControl(
@@ -242,6 +247,7 @@ subject_metadata <- function(model_data) {
       site_first = as.character(first(site)),
       n_sites = n_distinct(site),
       changed_site = if_else(n_sites > 1, "Changed site", "Same site"),
+      dx_bl = as.character(first(dcfdx)),
       dx_last = as.character(last(dcfdx)),
       .groups = "drop"
     )
@@ -262,17 +268,37 @@ save_model_coefficients <- function(model, condition) {
 }
 
 make_direction_plot <- function(predictions, threshold, title, y_limits) {
+  dx_counts <- predictions |>
+    dplyr::distinct(sub_id, dx_bl) |>
+    dplyr::count(dx_bl) |>
+    dplyr::mutate(dx_bl = as.character(dx_bl))
+
+  # Create labels in DX_LEVELS order
+  dx_labels <- setNames(
+    paste0(
+      DX_LEVELS,
+      " (n = ",
+      dx_counts$n[match(DX_LEVELS, dx_counts$dx_bl)],
+      ")"
+    ),
+    DX_LEVELS
+  )
+
   ggplot(
     predictions,
     aes(
       x = years_from_baseline,
       y = predicted_dmn,
       group = sub_id,
-      color = direction
+      color = dx_bl
     )
   ) +
     geom_line(alpha = 0.45, linewidth = 0.6) +
-    scale_color_manual(values = DIRECTION_COLORS) +
+    scale_color_manual(
+      values = DX_COLORS,
+      breaks = DX_LEVELS,
+      labels = dx_labels
+    ) +
     scale_x_continuous(
       limits = c(0, NA),
       breaks = seq(
@@ -283,7 +309,7 @@ make_direction_plot <- function(predictions, threshold, title, y_limits) {
       expand = c(0, 0)
     ) +
     scale_y_continuous(limits = y_limits) +
-    theme_classic(base_size = 13) +
+    theme_classic(base_size = 20) +
     labs(
       title = title,
       subtitle = paste0(
@@ -293,7 +319,7 @@ make_direction_plot <- function(predictions, threshold, title, y_limits) {
       ),
       x = "Years from baseline",
       y = "Predicted DMN within-network connectivity",
-      color = "Direction"
+      color = "Diagnosis at BL"
     )
 }
 
@@ -411,8 +437,8 @@ print(post_direction_plot)
 ggsave(
   filename = output("fc_related", "predicted_dmn_pre_fd_direction.pdf"),
   plot = pre_direction_plot,
-  width = 18,
-  height = 9
+  width = 13,
+  height = 7
 )
 
 ggsave(
@@ -437,7 +463,7 @@ site_plot <- ggplot(
   geom_line(alpha = 0.45, linewidth = 0.6) +
   scale_color_manual(values = SITE_COLORS, na.value = "grey80") +
   scale_x_continuous(limits = c(0, NA), expand = c(0, 0)) +
-  theme_classic(base_size = 13) +
+  theme_classic(base_size = 20) +
   labs(
     title = "Pre-FD conditional DMN trajectories by first-visit site",
     x = "Years from baseline",
@@ -463,7 +489,7 @@ site_change_plot <- ggplot(
     )
   ) +
   scale_x_continuous(limits = c(0, NA), expand = c(0, 0)) +
-  theme_classic(base_size = 13) +
+  theme_classic(base_size = 20) +
   labs(
     title = "Pre-FD conditional DMN trajectories by first-visit site",
     subtitle = "Line color indicates whether acquisition site changed across fitted visits",
@@ -484,7 +510,7 @@ dx_last_plot <- ggplot(
   geom_line(alpha = 0.55, linewidth = 0.65) +
   scale_color_brewer(palette = "Dark2", na.value = "grey70") +
   scale_x_continuous(limits = c(0, NA), expand = c(0, 0)) +
-  theme_classic(base_size = 13) +
+  theme_classic(base_size = 20) +
   labs(
     title = "Pre-FD conditional DMN trajectories by last-visit diagnosis",
     x = "Years from baseline",
@@ -503,7 +529,7 @@ dx_last_facet_plot <- ggplot(
   geom_line(color = "#2C7BB6", alpha = 0.45, linewidth = 0.6) +
   facet_wrap(~dx_last) +
   scale_x_continuous(limits = c(0, NA), expand = c(0, 0)) +
-  theme_classic(base_size = 13) +
+  theme_classic(base_size = 20) +
   labs(
     title = "Pre-FD conditional DMN trajectories by last-visit diagnosis",
     x = "Years from baseline",

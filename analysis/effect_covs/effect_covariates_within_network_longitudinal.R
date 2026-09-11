@@ -25,7 +25,7 @@ rm(.script_arg, .script_dir, .paths_candidates, .paths_file)
 
 
 # ============================================================
-# 1. Load and prepare data
+# 1. Load and prepare data 
 # ============================================================
 
 demos_withinconn <- read.csv(require_file(demos("demos_conn.csv")))
@@ -166,7 +166,7 @@ plot_factor_distribution <- function(
 # Save PDF + editable SVG
 # ============================================================
 
-save_plot <- function(plot, filename, width = 13, height = 7) {
+save_plot <- function(plot, filename, width = 23, height = 10, units = "cm") {
   ec_save_pdf_svg(
     plot = plot,
     out_dir = out_dir,
@@ -230,7 +230,7 @@ run_factor_analysis <- function(
     ),
 
     subtitle =
-      "Violin/box/jitter show fixed-effect predictions; stars indicate BH-FDR-corrected emmeans contrasts across connectivity outcomes",
+      "Violin/box/jitter show fixed-effect predictions; stars indicate Tukey-corrected emmeans contrasts across connectivity outcomes",
 
     y_lab =
       "Predicted within-network connectivity",
@@ -266,7 +266,7 @@ run_factor_analysis <- function(
     ),
 
     subtitle =
-      "Violin/box/jitter show partial residuals; stars indicate BH-FDR-corrected emmeans contrasts across connectivity outcomes",
+      "Violin/box/jitter show partial residuals; stars indicate Tukey-corrected emmeans contrasts across connectivity outcomes",
 
     y_lab =
       "Within-network connectivity (partial residual)",
@@ -288,7 +288,8 @@ run_factor_analysis <- function(
       covariate,
       "_",
       file_suffix
-    )
+    ),
+
   )
 
   save_plot(

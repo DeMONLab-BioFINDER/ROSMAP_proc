@@ -214,7 +214,7 @@ get_adjusted_predictions <- function(models) {
 network_plot_theme <- function() {
 
   theme_minimal(
-    base_size = 17
+    base_size = 20
   ) +
 
     theme(
@@ -225,14 +225,14 @@ network_plot_theme <- function() {
 
       # Network names above facets
       strip.text = element_text(
-        size = 16,
+        size = 22,
         face = "bold"
       ),
 
 
       # Main plot title
       plot.title = element_text(
-        size = 19,
+        size = 25,
         face = "bold",
         margin = margin(
           b = 10
@@ -242,7 +242,7 @@ network_plot_theme <- function() {
 
       # Axis titles
       axis.title.x = element_text(
-        size = 17,
+        size = 25,
         face = "bold",
         margin = margin(
           t = 8
@@ -250,7 +250,7 @@ network_plot_theme <- function() {
       ),
 
       axis.title.y = element_text(
-        size = 17,
+        size = 25,
         face = "bold",
         margin = margin(
           r = 8
@@ -262,11 +262,11 @@ network_plot_theme <- function() {
       # Original script used size = 9.
       # Keep axis text legible in exported figures.
       axis.text.x = element_text(
-        size = 14
+        size = 30
       ),
 
       axis.text.y = element_text(
-        size = 14
+        size = 30
       ),
 
 
@@ -844,7 +844,7 @@ results_fd_filtered <- run_fd_analysis(
     "fd_filtered"
 )
 
-
+  colnames(results_all$results)
 # ============================================================
 # 17. OPTIONAL: direct comparison of model coefficients
 # ============================================================
@@ -853,10 +853,10 @@ comparison_results <- results_all$results %>%
 
   select(
     network,
-    beta_all = beta_adjusted,
-    t_all = t_val_adjusted,
-    p_all = p_adjusted,
-    q_all = q_adjusted
+    beta_all = beta_fd,
+    t_all = t_val_fd,
+    p_all = p_fd,
+    q_all = q_fd
   ) %>%
 
   left_join(
@@ -865,10 +865,10 @@ comparison_results <- results_all$results %>%
 
       select(
         network,
-        beta_fd_filtered = beta_adjusted,
-        t_fd_filtered = t_val_adjusted,
-        p_fd_filtered = p_adjusted,
-        q_fd_filtered = q_adjusted
+        beta_fd_filtered = beta_fd,
+        t_fd_filtered = t_val_fd,
+        p_fd_filtered = p_fd,
+        q_fd_filtered = q_fd
       ),
 
     by = "network"
@@ -945,9 +945,9 @@ get_selected_residuals <- function(models, model_results, condition_label) {
       y = Inf,
       plot_label = sprintf(
         "beta = %.3f %s\nq = %.3g",
-        beta_adjusted,
-        sig_adjusted,
-        q_adjusted
+        beta_fd,
+        sig_fd,
+        q_fd
       )
     )
 
@@ -996,26 +996,30 @@ make_selected_residual_panel <- function(residuals, title = NULL) {
     residuals$points,
     aes(x = x, y = partial_residual, color = network)
   ) +
-    geom_point(alpha = 0.35, size = 0.8) +
+    geom_point(alpha = 0.35, size = 1.5) +
     geom_line(
       data = residuals$lines,
       aes(x = x, y = fitted, color = network),
       inherit.aes = FALSE,
-      linewidth = 0.8
+      linewidth = 1.2
     ) +
     geom_label(
       data = residuals$labels,
       aes(x = x, y = y, label = plot_label),
       inherit.aes = FALSE,
       hjust = 1.05,
-      vjust = 1.1,
-      size = 3.2,
+      vjust = 0.9,
+      size = 9,
       color = "black",
       fill = "white",
-      alpha = 0.85,
+      alpha = 0.75,
       linewidth = 0
     ) +
-    facet_grid(condition ~ network) +
+    facet_grid(
+      condition ~ network,
+      scales = "fixed",
+      space = "fixed"
+    ) +
     scale_color_manual(values = network_colors) +
     scale_y_continuous(breaks = fixed_y_breaks) +
     coord_cartesian(ylim = fixed_y_limits) +
@@ -1032,8 +1036,10 @@ make_selected_residual_panel <- function(residuals, title = NULL) {
       axis.title = element_text(size = 11, face = "bold"),
       axis.text = element_text(size = 9),
       panel.grid.minor = element_blank(),
-      panel.spacing.x = grid::unit(0.35, "cm")
-    )
+      panel.spacing.x = grid::unit(0.35, "cm"),
+      text=element_text(family="Helvetica")
+    ) +
+    network_plot_theme()
 }
 
 p_before <- make_selected_residual_panel(pres_all)
@@ -1065,8 +1071,8 @@ ggsave(
   ),
   p_residuals_selected,
   device = cairo_pdf,
-  width = 18,
-  height = 9,
+  width = 50,
+  height = 27,
   units = "cm"
 )
 

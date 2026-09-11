@@ -120,7 +120,7 @@ stats_df <- covs_long_df %>%
     ),
     covariate = as.character(covariate),
     contrast = as.character(contrast),
-    sig_across = ifelse(is.na(sig_across), "", sig_across),
+    sig_tukey = ifelse(is.na(sig_tukey), "", sig_tukey),
     t_value = as.numeric(statistic)
   ) %>%
   separate(
@@ -184,7 +184,7 @@ make_covariate_heatmap_grid_lower <- function(
     filter_status_to_plot,
     contrast_levels,
     fill_limits = NULL,
-    text_size = 4
+    text_size = 6
 ) {
   
   # 1. Filter to the requested covariate/status
@@ -194,7 +194,7 @@ make_covariate_heatmap_grid_lower <- function(
       filter_status == filter_status_to_plot
     ) %>%
     mutate(
-      sig_across = ifelse(is.na(sig_across), "", sig_across),
+      sig_tukey = ifelse(is.na(sig_tukey), "", sig_tukey),
       t_value = as.numeric(t_value),
       network1 = as.character(network1),
       network2 = as.character(network2),
@@ -241,7 +241,7 @@ make_covariate_heatmap_grid_lower <- function(
       panel_col_id = pmin(contrast1_id, contrast2_id),
       
       t_value_plot = ifelse(flip_contrast, -t_value, t_value),
-      sig_across_plot = sig_across
+      sig_tukey_plot = sig_tukey
     ) %>%
     filter(panel_row_id > panel_col_id) %>%
     mutate(
@@ -258,7 +258,7 @@ make_covariate_heatmap_grid_lower <- function(
         row_net = network1,
         col_net = network2,
         t_value = t_value_plot,
-        sig_across = sig_across_plot
+        sig_tukey = sig_tukey_plot
       ),
     plot_df %>%
       filter(network1 != network2) %>%
@@ -268,25 +268,25 @@ make_covariate_heatmap_grid_lower <- function(
         row_net = network2,
         col_net = network1,
         t_value = t_value_plot,
-        sig_across = sig_across_plot
+        sig_tukey = sig_tukey_plot
       )
   ) %>%
     group_by(panel_row, panel_col, row_net, col_net) %>%
     summarise(
       t_value = first(t_value),
-      sig_across = first(sig_across),
+      sig_tukey = first(sig_tukey),
       .groups = "drop"
     ) %>%
     mutate(
       cell_label = ifelse(
         is.na(t_value),
         "",
-        paste0(sprintf("%.2f", t_value), sig_across)
+        paste0(sprintf("%.2f", t_value), sig_tukey)
       ),
       row_net = factor(row_net, levels = rev(network_order)),
       col_net = factor(col_net, levels = network_order)
     )
-  
+  #sprintf("%.2f", t_value), 
   # 5. Create full network x network grid for every lower-triangle panel
   panel_grid <- plot_df %>% distinct(panel_row, panel_col)
   
@@ -347,13 +347,13 @@ make_covariate_heatmap_grid_lower <- function(
       drop = FALSE
     ) +
     coord_fixed() +
-    theme_minimal(base_size = 11) +
+    theme_minimal(base_size = 20) +
     theme(
       panel.grid = element_blank(),
       axis.title = element_blank(),
-      axis.text.x = element_text(angle = 45, hjust = 1, size = 6),
-      axis.text.y = element_text(size = 6),
-      strip.text = element_text(face = "bold", size = 9),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 18),
+      axis.text.y = element_text(size = 18),
+      strip.text = element_text(face = "bold", size = 16),
       legend.position = "right",
       plot.title = element_text(face = "bold", hjust = 0.5),
       plot.subtitle = element_text(hjust = 0.5)
@@ -394,7 +394,7 @@ make_covariate_heatmaps <- function(
       filter_status == filter_status_to_plot
     ) %>%
     mutate(
-      sig_across = ifelse(is.na(sig_across), "", sig_across),
+      sig_tukey = ifelse(is.na(sig_tukey), "", sig_tukey),
       t_value = as.numeric(t_value),
       network1 = as.character(network1),
       network2 = as.character(network2),
@@ -438,7 +438,7 @@ make_covariate_heatmaps <- function(
           row_net = network1,
           col_net = network2,
           t_value = t_value,
-          sig_across = sig_across
+          sig_tukey = sig_tukey
         ),
       contrast_df %>%
         filter(network1 != network2) %>%
@@ -446,20 +446,20 @@ make_covariate_heatmaps <- function(
           row_net = network2,
           col_net = network1,
           t_value = t_value,
-          sig_across = sig_across
+          sig_tukey = sig_tukey
         )
     ) %>%
       group_by(row_net, col_net) %>%
       summarise(
         t_value = first(t_value),
-        sig_across = first(sig_across),
+        sig_tukey = first(sig_tukey),
         .groups = "drop"
       ) %>%
       mutate(
         cell_label = ifelse(
           is.na(t_value),
           "",
-          paste0(sprintf("%.2f", t_value), sig_across)
+          paste0(sprintf("%.2f", t_value), sig_tukey)
         ),
         row_net = factor(row_net, levels = rev(network_order)),
         col_net = factor(col_net, levels = network_order)
@@ -556,8 +556,8 @@ make_covariate_heatmaps <- function(
           )
         ),
         plot = p,
-        width = 8,
-        height = 7,
+        width = 20,
+        height = 20,
         dpi = 300
       )
     }
@@ -680,8 +680,8 @@ for (plot_name in names(grid_plots)) {
   ggsave(
     filename = output("heatmaps", paste0("heatmap_grid_", plot_name, ".pdf")),
     plot = grid_plots[[plot_name]],
-    width = 18,
-    height = 10,
+    width = 15,
+    height = 15,
     units = "in",
     limitsize = FALSE
   )

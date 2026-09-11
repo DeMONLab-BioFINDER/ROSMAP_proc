@@ -162,8 +162,6 @@ ggplot(counts, aes(x = version, y = count)) +
   ) +
   theme_minimal()
 
-# nobbr: sub-06129174_ses-0, 59
-
 # avg coverage per ID, bbr vs nobbr
 
 avg_bbr <- read_tsv("analysis/qc_plots/BNK_BBRnoBBR_plot/bbr_mean_coverage_456parcels_priority.tsv") %>%

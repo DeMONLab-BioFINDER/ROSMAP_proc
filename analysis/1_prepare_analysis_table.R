@@ -309,6 +309,7 @@ summary_tbl_all_sessions <- demos_connectivity %>%
     N = n(),
     `Age BL (SD)` = sprintf("%.1f (%.1f)", mean(age_bl, na.rm = TRUE), sd(age_bl, na.rm = TRUE)),
     `Age LV (SD)` = sprintf("%.1f (%.1f)", mean(age_lv, na.rm = TRUE), sd(age_lv, na.rm = TRUE)),
+    `Follow-up years` = sprintf("%.1f (%.1f)", mean(years_from_baseline, na.rm = TRUE), sd(years_from_baseline, na.rm = TRUE), min(years_from_baseline, na.rm = TRUE), max(years_from_baseline, na.rm = TRUE)),
     `% Female` = sprintf("%.1f", mean(msex %in% c("Female", "F", "female"), na.rm = TRUE) * 100),
     `Education (SD)` = sprintf("%.1f (%.1f)", mean(educ, na.rm = TRUE), sd(educ, na.rm = TRUE)),
     `%MCI LV` = sprintf("%.1f", mean(dcfdx_lv == "MCI", na.rm = TRUE) * 100),

@@ -4,7 +4,7 @@
 # repository. Set ROSMAP_DATA to their directory and ROSMAP_OUTPUT to the
 # directory where generated tables and figures should be written.
 #
-# Publication motion-exclusion rule:
+# motion-exclusion rule:
 #   retain scans only when mean_FD < 0.25 mm.
 
 .find_analysis_dir <- function() {

@@ -188,8 +188,7 @@ ec_select_baseline <- function(
     dplyr::ungroup()
 }
 
-# Apply the prespecified publication motion-exclusion rule.
-# FD_THRESHOLD is defined once in analysis/paths.R.
+# Apply FD_THRESHOLD, defined once in analysis/paths.R.
 ec_apply_fd_filter <- function(
     data,
     threshold = FD_THRESHOLD,
@@ -290,8 +289,7 @@ ec_prepare_model_variables <- function(
 }
 
 # Pivot connectivity measures to long format and apply one explicit
-# complete-case definition. This replaces several subtly different make_long()
-# copies. required_vars should contain every variable used by the model.
+# complete-case definition. required_vars should contain every variable used by the model.
 ec_make_long <- function(
     data,
     measure_cols,
@@ -361,8 +359,8 @@ ec_make_pairwise_brackets <- function(
     measure_col,
     value_col,
     group_col = covariate,
-    p_col = "q_across",
-    sig_col = "sig_across"
+    p_col = "p_tukey",
+    sig_col = "sig_tukey"
 ) {
   if (!all(c(measure_col, value_col, group_col) %in% names(plot_data))) {
     stop("Plot data are missing required bracket columns.")
@@ -460,11 +458,6 @@ ec_print_pairwise_table <- function(
       p_tukey = signif(
         p_tukey,
         3
-      ),
-
-      q_across = signif(
-        q_across,
-        3
       )
     ) %>%
     tibble::as_tibble() %>%
@@ -506,7 +499,7 @@ ec_print_fd_model_table <- function(model_results, title, measure_col = NULL) {
   print(tibble::as_tibble(display), n = Inf)
 }
 
-# Fit the same scientific model independently for each connectivity measure.
+# Fit the same scientific model independently for each connectivity measure (each network/ net combo).
 # The formula is always supplied by the entry-point script so the model remains
 # visible next to the analysis it represents.
 ec_fit_models_by_measure <- function(
@@ -594,8 +587,6 @@ ec_get_fitted_data <- function(
 # Returns:
 #   p_raw    - unadjusted contrast p-value
 #   p_tukey  - Tukey-adjusted p-value within each connectivity outcome
-#   q_across - BH-FDR correction across all outcomes and contrasts
-#              for the current covariate/analysis dataset
 
 ec_pairwise_from_models <- function(
     models,
@@ -684,6 +675,7 @@ ec_pairwise_from_models <- function(
   )
 
 
+  # old approach, discarded FDR
   # BH-FDR across all connectivity outcomes and pairwise
   # contrasts for this covariate/analysis dataset.
   results$q_across <- stats::p.adjust(
@@ -694,10 +686,6 @@ ec_pairwise_from_models <- function(
 
   results$sig_tukey <- ec_sig_from_p(
     results$p_tukey
-  )
-
-  results$sig_across <- ec_sig_from_p(
-    results$q_across
   )
 
 
@@ -946,123 +934,287 @@ ec_plot_fd_effects <- function(
 # Generic violin/box/jitter distribution used by categorical covariate plots.
 # It supports both model-fitted distributions and visreg partial residuals.
 ec_plot_factor_distribution <- function(
+
     plot_data,
+
     covariate,
+
     pairwise_results,
+
     title,
+
     subtitle,
+
     y_label,
+
     measure_col,
+
     value_col,
+
     group_col,
+
     palette,
+
     y_limits = NULL,
+
     y_breaks = NULL,
+
     facet_ncol = NULL,
+
     facet_axes_all = FALSE,
+
     x_text_angle = 45,
-    x_text_size = NULL,
-    y_text_size = NULL,
-    base_size = 13
+
+    x_text_size = 35,
+
+    y_text_size = 35
+
 ) {
+
   pairwise_annot <- ec_make_pairwise_brackets(
+
     plot_data = plot_data,
+
     pairwise_results = pairwise_results,
+
     covariate = covariate,
+
     measure_col = measure_col,
+
     value_col = value_col,
+
     group_col = group_col
+
   )
 
   p <- ggplot2::ggplot(
-    plot_data,
-    ggplot2::aes(
-      x = .data[[group_col]],
-      y = .data[[value_col]],
-      color = .data[[measure_col]],
-      fill = .data[[measure_col]]
-    )
-  ) +
-    ggplot2::geom_violin(
-      alpha = 0.18,
-      linewidth = 0.3,
-      trim = FALSE
-    ) +
-    ggplot2::geom_boxplot(
-      width = 0.30,
-      alpha = 0.75,
-      outlier.shape = NA,
-      linewidth = 0.35
-    ) +
-    ggplot2::geom_jitter(
-      width = 0.12,
-      alpha = 0.09,
-      size = 0.4
-    ) +
-    ggplot2::scale_x_discrete(drop = FALSE) +
-    ggplot2::scale_color_manual(values = palette) +
-    ggplot2::scale_fill_manual(values = palette) +
-    ggplot2::scale_y_continuous(
-      breaks = if (is.null(y_breaks)) ggplot2::waiver() else y_breaks,
-      expand = ggplot2::expansion(mult = c(0.18, 0.18))
-    ) +
-    ggplot2::coord_cartesian(ylim = y_limits) +
-    ggplot2::theme_minimal(base_size = base_size)
 
-  facet_formula <- stats::as.formula(paste("~", measure_col))
+    plot_data,
+
+    ggplot2::aes(
+
+      x = .data[[group_col]],
+
+      y = .data[[value_col]],
+
+      color = .data[[measure_col]],
+
+      fill = .data[[measure_col]]
+
+    )
+
+  ) +
+
+    ggplot2::geom_violin(
+
+      alpha = 0.18,
+
+      linewidth = 0.3,
+
+      trim = FALSE
+
+    ) +
+
+    ggplot2::geom_boxplot(
+
+      width = 0.30,
+
+      alpha = 0.75,
+
+      outlier.shape = NA,
+
+      linewidth = 0.35
+
+    ) +
+
+    ggplot2::geom_jitter(
+
+      width = 0.12,
+
+      alpha = 0.09,
+
+      size = 0.4
+
+    ) +
+
+    ggplot2::scale_x_discrete(drop = FALSE) +
+
+    ggplot2::scale_color_manual(values = palette) +
+
+    ggplot2::scale_fill_manual(values = palette) +
+
+    ggplot2::scale_y_continuous(
+
+      breaks = if (is.null(y_breaks)) ggplot2::waiver() else y_breaks,
+
+      expand = ggplot2::expansion(mult = c(0.18, 0.18))
+
+    ) +
+
+    ggplot2::coord_cartesian(ylim = y_limits)
+
+  facet_formula <- stats::as.formula(
+    paste("~", measure_col)
+  )
+
   if (facet_axes_all) {
-    p <- p + ggplot2::facet_wrap(
-      facet_formula,
-      ncol = facet_ncol,
-      scales = "fixed",
-      axes = "all",
-      axis.labels = "all"
-    )
+
+    p <- p +
+
+      ggplot2::facet_wrap(
+
+        facet_formula,
+
+        ncol = facet_ncol,
+
+        scales = "fixed",
+
+        axes = "all",
+
+        axis.labels = "all"
+
+      )
+
   } else {
-    p <- p + ggplot2::facet_wrap(
-      facet_formula,
-      ncol = facet_ncol,
-      scales = "fixed"
-    )
+
+    p <- p +
+
+      ggplot2::facet_wrap(
+
+        facet_formula,
+
+        ncol = facet_ncol,
+
+        scales = "fixed"
+
+      )
+
   }
 
-  x_theme <- ggplot2::element_text(
-    angle = x_text_angle,
-    hjust = if (x_text_angle == 0) 0.5 else 1,
-    size = x_text_size
-  )
-  y_theme <- ggplot2::element_text(size = y_text_size)
-
   p <- p +
-    ggplot2::theme(
-      legend.position = "none",
-      strip.text = ggplot2::element_text(face = "bold"),
-      panel.grid.minor = ggplot2::element_blank(),
-      axis.text.x = x_theme,
-      axis.text.y = y_theme
-    ) +
+
     ggplot2::labs(
+
       title = title,
+
       subtitle = subtitle,
+
       x = covariate,
+
       y = y_label
+
+    ) +
+
+    network_plot_theme() +
+
+    ggplot2::theme(
+
+      # Same Helvetica font as your residual plots
+      text = ggplot2::element_text(
+        family = "Helvetica"
+      ),
+
+      # Keep shared size but allow rotation
+      axis.text.x = ggplot2::element_text(
+        size = x_text_size,
+        angle = x_text_angle,
+        hjust = if (x_text_angle == 0) 0.5 else 1
+      ),
+
+      axis.text.y = ggplot2::element_text(
+        size = y_text_size
+      ),
+
+      # Subtitle isn't currently specified in network_plot_theme()
+      plot.subtitle = ggplot2::element_text(
+        size = 20,
+        margin = ggplot2::margin(
+          b = 10
+        )
+      )
+
     )
 
   if (nrow(pairwise_annot) > 0) {
-    p <- p + ggpubr::stat_pvalue_manual(
-      pairwise_annot,
-      label = "label",
-      xmin = "group1",
-      xmax = "group2",
-      y.position = "y.position",
-      tip.length = 0,
-      size = 4,
-      bracket.size = 0.35,
-      hide.ns = TRUE
-    )
+
+    p <- p +
+
+      ggpubr::stat_pvalue_manual(
+
+        pairwise_annot,
+
+        label = "label",
+
+        xmin = "group1",
+
+        xmax = "group2",
+
+        y.position = "y.position",
+
+        tip.length = 0,
+
+        size = 7,
+
+        bracket.size = 0.35,
+
+        hide.ns = TRUE
+
+      )
+
   }
 
   p
+}
+
+network_plot_theme <- function() {
+
+  theme_minimal(
+    base_size = 20,
+    base_family = "Helvetica"
+  ) +
+
+    theme(
+
+      legend.position = "none",
+
+      strip.text = element_text(
+        size = 22,
+        face = "bold"
+      ),
+
+      plot.title = element_text(
+        size = 25,
+        face = "bold",
+        margin = margin(b = 10)
+      ),
+
+      plot.subtitle = element_text(
+        size = 20,
+        margin = margin(b = 10)
+      ),
+
+      axis.title.x = element_text(
+        size = 30,
+        face = "bold",
+        margin = margin(t = 8)
+      ),
+
+      axis.title.y = element_text(
+        size = 30,
+        face = "bold",
+        margin = margin(r = 8)
+      ),
+
+      axis.text.x = element_text(
+        size = 35
+      ),
+
+      axis.text.y = element_text(
+        size = 35
+      ),
+
+      panel.grid.minor = element_blank()
+    )
 }
 
 # Save an editable vector pair with consistent dimensions.
@@ -1077,8 +1229,9 @@ ec_save_pdf_svg <- function(
   pdf_args <- list(
     filename = file.path(out_dir, paste0(filename, ".pdf")),
     plot = plot,
-    width = width,
-    height = height
+    width = 30,
+    height = 40,
+    units = "cm"
   )
   if (cairo) pdf_args$device <- grDevices::cairo_pdf
   do.call(ggplot2::ggsave, pdf_args)
