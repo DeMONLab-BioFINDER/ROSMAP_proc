@@ -140,7 +140,7 @@ plot_factor_covariate <- function(
     title = title,
     subtitle = paste0(
       "Violin/box/jitter show model-predicted values; ",
-      "stars indicate BH-FDR-corrected emmeans contrasts across connectivity outcomes"
+      "stars indicate BH-FDR-corrected emmeans contrasts"
     ),
     y_label = "Predicted between-network connectivity",
     measure_col = "network_combo",

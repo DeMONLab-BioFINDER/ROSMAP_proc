@@ -148,7 +148,7 @@ plot_partial_residual_covariate <- function(
     title = title,
     subtitle = paste0(
       "Violin/box/jitter show partial residuals; ",
-      "stars indicate Tukey-corrected emmeans contrasts across connectivity outcomes"
+      "stars indicate Tukey-corrected emmeans contrasts"
     ),
     y_label = "Partial residual",
     measure_col = "network_combo",
@@ -177,7 +177,7 @@ plot_factor_covariate <- function(
     title = title,
     subtitle = paste0(
       "Violin/box/jitter show fixed-effect predictions; ",
-      "stars indicate Tukey-corrected emmeans contrasts across connectivity outcomes"
+      "stars indicate Tukey-corrected emmeans contrasts"
     ),
     y_label = "Predicted between-network connectivity",
     measure_col = "network_combo",
@@ -252,8 +252,8 @@ run_factor_analysis <- function(
         paste0("betweenconn_partial_residuals_", covariate, "_", file_suffix, ".png")
       ),
       plot = p_partial,
-      width = 13,
-      height = 9,
+      width = 26,
+      height = 18,
       dpi = 300
     )
   }

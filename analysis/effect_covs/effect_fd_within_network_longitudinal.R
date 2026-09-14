@@ -214,7 +214,7 @@ get_adjusted_predictions <- function(models) {
 network_plot_theme <- function() {
 
   theme_minimal(
-    base_size = 20
+    base_size = 15
   ) +
 
     theme(
@@ -913,12 +913,17 @@ selected_networks <- c(
   "SomMot"
 )
 
-
+selected_networks_suppl <- c(
+  "Vis",
+  "DorsAttn",
+  "SalVentAttn",
+  "Cont"
+)
 # ------------------------------------------------------------
 # Extract partial residual data for selected networks
 # ------------------------------------------------------------
 
-get_selected_residuals <- function(models, model_results, condition_label) {
+get_selected_residuals <- function(models, selected_networks, model_results, condition_label) {
   vr <- get_partial_residual_data(
     models[selected_networks],
     predictor = "mean_FD"
@@ -961,6 +966,7 @@ get_selected_residuals <- function(models, model_results, condition_label) {
 
 pres_all <- get_selected_residuals(
   models = results_all$models,
+  selected_networks = selected_networks,
   model_results = results_all$results,
   condition_label = "Before FD exclusion"
 )
@@ -972,11 +978,29 @@ pres_all <- get_selected_residuals(
 
 pres_filtered <- get_selected_residuals(
   models = results_fd_filtered$models,
+  selected_networks = selected_networks,
   model_results = results_fd_filtered$results,
   condition_label = "After FD exclusion"
 )
 
 
+# ------------------------------------------------------------
+# PLOTTING FOR SUPPPLEMENTARY FIGURE
+# ------------------------------------------------------------
+
+suppl_pre_all <- get_selected_residuals(
+  models = results_all$models,
+  selected_networks = selected_networks_suppl,
+  model_results = results_all$results,
+  condition_label = "Before FD exclusion"
+)
+
+suppl_post_all <- get_selected_residuals(
+  models = results_fd_filtered$models,
+  selected_networks = selected_networks_suppl,
+  model_results = results_fd_filtered$results,
+  condition_label = "After FD exclusion"
+)
 # ============================================================
 # 19. Make 2 x 3 selected-network plot
 # ============================================================
@@ -1028,7 +1052,7 @@ make_selected_residual_panel <- function(residuals, title = NULL) {
       x = "Mean framewise displacement",
       y = "Within-network connectivity\n(partial residual)"
     ) +
-    theme_minimal(base_size = 10) +
+    theme_minimal(base_size = 8) +
     theme(
       legend.position = "none",
       plot.title = element_text(size = 11, face = "bold"),
@@ -1059,6 +1083,17 @@ p_residuals_selected <-
 
 print(p_residuals_selected)
 
+# ============================================================
+# Stack the two rows for supplementary figure
+# ============================================================
+
+p_residuals_selected_suppl <-
+  make_selected_residual_panel(suppl_pre_all) /
+  make_selected_residual_panel(
+    suppl_post_all,
+    title = paste0("FD < ", fd_threshold)
+  )
+
 
 # ============================================================
 # Save selected-network comparison
@@ -1086,3 +1121,18 @@ ggsave(
   height = 9,
   units = "cm"
 )
+
+# ============================================================
+# save supplementary figure
+
+ggsave(
+  file.path(
+    out_dir,
+    "fd_partial_residuals_selected_networks_before_after_suppl.pdf"
+  ),
+  p_residuals_selected_suppl,
+  width = 70,
+  height = 27,
+  units = "cm"
+)
+

@@ -16,3 +16,6 @@ analysis/outputs/*
 analysis/sheets/*
 **/**/.DS_Store
 .DS_Store
+analysis/.DS_Store
+.DS_Store
+analysis/outputs/.DS_Store

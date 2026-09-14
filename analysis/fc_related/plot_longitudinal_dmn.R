@@ -437,8 +437,8 @@ print(post_direction_plot)
 ggsave(
   filename = output("fc_related", "predicted_dmn_pre_fd_direction.pdf"),
   plot = pre_direction_plot,
-  width = 13,
-  height = 7
+  width = 18,
+  height = 9
 )
 
 ggsave(

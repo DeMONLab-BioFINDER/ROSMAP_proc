@@ -230,7 +230,7 @@ run_factor_analysis <- function(
     ),
 
     subtitle =
-      "Violin/box/jitter show fixed-effect predictions; stars indicate Tukey-corrected emmeans contrasts across connectivity outcomes",
+      "Violin/box/jitter show fixed-effect predictions; stars indicate Tukey-corrected emmeans contrasts",
 
     y_lab =
       "Predicted within-network connectivity",
