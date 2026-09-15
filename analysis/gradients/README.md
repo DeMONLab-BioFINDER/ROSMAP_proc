@@ -2,11 +2,9 @@
 
 This directory contains the scripts used to derive functional-connectivity gradients from site-level average ROSMAP connectivity matrices.
 
-The gradient implementation in `compute_gradients.R` and `util_gradients.R` was adapted from the BioFINDER gradient-analysis workflow developed by Jorrit Rittmo:
+The gradient implementation in `compute_gradients.R` and `util_gradients.R` was adapted from the BioFINDER gradient-analysis workflow developed by Jonathan Rittmo:
 
 https://github.com/DeMONLab-BioFINDER/fc_changes_follow_gradients
-
-The numerical gradient implementation has intentionally been kept close to the original fork. Repository-specific modifications primarily concern input paths, local configuration, and ROSMAP atlas/reference preparation rather than the underlying gradient methodology.
 
 ## Directory structure
 
@@ -233,6 +231,7 @@ Schaefer2018_400Parcels_7Networks_order.txt
 ```
 
 as the source parcel-order file.
+
 ---
 
 ## Primary gradient specification
