@@ -1,20 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
+# uncomment if running on cluster with modules:
 # module load c3d/1.4.4
 # module load fsl/6.0
 # source ${FSLDIR}/etc/fslconf/fsl.sh
 
-pathroot="/Volumes/research/LU26D1023-DemonLab/DemonLab/ROSMAP"
+base_dir="/Users/ga0034de/Desktop"
+pathroot="${base_dir}/output_priority4_freesurfnobbr"
 
-list_sid="/Volumes/research/LU26D1023-DemonLab/DemonLab/ROSMAP/raw/code/ID_list.csv"
-output_file="/Users/ga0034de/Desktop/dropout10_old.txt"
-log_file="/Users/ga0034de/Desktop/dropout10_old_errors.log"
+list_sid="/Users/ga0034de/Documents/R_projs/priority_rosmap/ID_list.csv"
+output_file="${base_dir}/2704nobbr_dropout10_new.txt"
+log_file="${base_dir}/dropout10_errors.log"
 
-echo "sid session volume_gm nvox_gm intensity_gm volume_dropout nvox_dropout intensity_dropout" > "$output_file"
+echo "sid, session, volume_gm, nvox_gm, intensity_gm, volume_dropout, nvox_dropout, intensity_dropout" > "$output_file"
 : > "$log_file"
 
-wdir="/Users/ga0034de/Desktop/workdir"
+wdir="${base_dir}/workdir"
 
 # helper: find first file matching pattern
 find_first_file() {
@@ -41,12 +43,12 @@ while IFS=',' read -r col1 col2 rest; do
     session="$col2"
     echo "Processing subject: $sid, session: $session"
 
-    # 1) Try the exact expected path (old style you used)
-    fmriprep_dir="${pathroot}/derivatives/fmriprep/unzipped/${sid}_${session}_fmriprep-25-1-1/fmriprep/${sid}/${session}"
+    # 1) Try the exact expected path (old style used)
+    fmriprep_dir="${pathroot}/${sid}_${session}_fmriprep-25-2-5/fmriprep/${sid}/${session}"
 
     # 3) If still missing, try to locate any directory under derivatives that looks like the subject/session
     if [[ ! -d "$fmriprep_dir" ]]; then
-        fmriprep_dir="${pathroot}/derivatives/fmriprep/unzipped/${sid}_${session}_fmriprep-25-1-1/${sid}/${session}"
+        fmriprep_dir="${pathroot}/${sid}_${session}_fmriprep-25-2-5/${sid}/${session}"
     fi
 
     if [[ ! -d "${fmriprep_dir}" ]]; then
@@ -98,27 +100,39 @@ while IFS=',' read -r col1 col2 rest; do
     mask_gm_thr_clean="$wdir/${sid}_${session}/anat/${sid}_${session}_space-MNI152NLin6Asym_res-2_GM_wo-dropout_temp.nii.gz"
     mask_merged="$wdir/${sid}_${session}/func/${sid}_${session}_space-MNI152NLin6Asym_res-2_anat-func-masks-merged.nii.gz"
 
-    mask_dropout_old="$wdir/${sid}_${session}/func/${sid}_${session}_space-MNI152NLin6Asym_res-2_desc-dropoutsmaskold.nii.gz"
-
     echo "Creating GM binary mask (thr=0.3) at: $mask_gm_thr"
     fslmaths "$gm_seg" -thr 0.3 -bin "$mask_gm_thr"
 
-    fslmaths "$mask_gm_thr" -sub "$mask_func" "$mask_dropout_old"
-    fslmaths "$mask_dropout_old" -thr 0 -bin "$mask_dropout_old"
-    
+    # merge anat+func masks (c3d add, replace) — use both masks
+    c3d "$mask_anat" "$mask_func" -add -replace 2 1 -o "$mask_merged"
+	echo "Merged anat+func mask created at: $mask_merged"
+    # mask the boldref with the merged mask
+    fslmaths "$boldref" -mul "$mask_merged" "$boldref_masked"
+
+    # compute threshold from masked boldref and create new mask
+    thresh=$(fslstats "$boldref_masked" -l 0.001 -P 10 2>/dev/null | awk '{print $1}')
+	echo "DEBUG thresh raw: '$(fslstats "$boldref_masked" -l 0.001 -P 10)'"
+	echo "DEBUG thresh var: '$thresh'"
+    fslmaths "$boldref_masked" -thr "$thresh" -bin "$new_mask_func"
+
+    # compute dropout: GM mask minus new func mask (inverting new_mask_func before add by -scale -1)
+    c3d "$mask_gm_thr" "$new_mask_func" -scale -1 -add -o "$mask_dropout"
+    # convert >1 values -> 0 and 1 stays 1
+    c3d "$mask_dropout" -replace 1 1 0 0 -1 0 -o "$mask_dropout"
+
     # stats
-    vol_dropout=$(c3d "$mask_dropout_old" -dup -lstat | awk 'NR==3 {print $7}')
-    nvox_dropout=$(c3d "$mask_dropout_old" -dup -lstat | awk 'NR==3 {print $6}')
+    vol_dropout=$(c3d "$mask_dropout" -dup -lstat | awk 'NR==3 {print $7}')
+    nvox_dropout=$(c3d "$mask_dropout" -dup -lstat | awk 'NR==3 {print $6}')
 
     vol_gm=$(c3d "$mask_gm_thr" -dup -lstat | awk 'NR==3 {print $7}')
     nvox_gm=$(c3d "$mask_gm_thr" -dup -lstat | awk 'NR==3 {print $6}')
 
-    fslmaths "$mask_gm_thr" -sub "$mask_dropout_old" "$mask_gm_thr_clean"
+    fslmaths "$mask_gm_thr" -sub "$mask_dropout" "$mask_gm_thr_clean"
     intensity_gm=$(fslstats "$boldref" -k "$mask_gm_thr_clean" -M)
-    intensity_dropout=$(fslstats "$boldref" -k "$mask_dropout_old" -M)
+    intensity_dropout=$(fslstats "$boldref" -k "$mask_dropout" -M)
 
     echo "$sid $session | GM: $vol_gm $intensity_gm | dropouts: $vol_dropout $intensity_dropout"
-    echo "$sid $session $vol_gm $nvox_gm $intensity_gm $vol_dropout $nvox_dropout $intensity_dropout" >> "$output_file"
+    echo "$sid, $session, $vol_gm, $nvox_gm, $intensity_gm, $vol_dropout, $nvox_dropout, $intensity_dropout" >> "$output_file"
 
     # cleanup temp files (don't fail if missing)
     rm -f "$mask_gm_thr_clean" "$mask_merged" "$boldref_masked"
