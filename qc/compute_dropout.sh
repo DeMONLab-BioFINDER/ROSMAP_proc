@@ -20,7 +20,6 @@ list_sid="$2"
 output_file="$3"
 wdir="${4:-$(dirname "$output_file")/work_dropout}"
 log_file="${output_file%.*}.errors.log"
-fmriprep_version="${FMRIPREP_VERSION:-25-2-5}"
 
 mkdir -p "$(dirname "$output_file")" "$wdir"
 printf '%s\n' 'sid,session,volume_gm,nvox_gm,intensity_gm,volume_dropout,nvox_dropout,intensity_dropout' > "$output_file"
@@ -37,13 +36,22 @@ while IFS=',' read -r sid session _; do
     [[ "$sid" == "sub_id" || -z "$sid" ]] && continue
 
     echo "Processing $sid $session"
-    job_dir="${pathroot}/${sid}_${session}_fmriprep-${fmriprep_version}"
+
+    matches=("${pathroot}/${sid}_${session}_fmriprep-"*)
+
+    if (( ${#matches[@]} != 1 )) || [[ ! -d "${matches[0]}" ]]; then
+        echo "Expected exactly one fMRIPrep folder for $sid $session"
+        continue
+    fi
+
+    job_dir="${matches[0]}"
     fmriprep_dir="${job_dir}/fmriprep/${sid}/${session}"
     [[ -d "$fmriprep_dir" ]] || fmriprep_dir="${job_dir}/${sid}/${session}"
 
     if [[ ! -d "$fmriprep_dir" ]]; then
         echo "$(date) - WARNING: fMRIPrep directory not found for $sid $session" | tee -a "$log_file"
-        printf '%s,%s,%s\n' "$sid" "$session" "missing_fmriprep" >> "$output_file"
+        printf '%s,%s,%s,%s,%s,%s,%s,%s\n' \
+            "$sid" "$session" "NA" "NA" "NA" "NA" "NA" "NA" >> "$output_file"
         continue
     fi
 
@@ -60,7 +68,8 @@ while IFS=',' read -r sid session _; do
         fi
     done
     if (( missing )); then
-        printf '%s,%s,%s\n' "$sid" "$session" "missing_files" >> "$output_file"
+        printf '%s,%s,%s,%s,%s,%s,%s,%s\n' \
+            "$sid" "$session" "NA" "NA" "NA" "NA" "NA" "NA" >> "$output_file"
         continue
     fi
 

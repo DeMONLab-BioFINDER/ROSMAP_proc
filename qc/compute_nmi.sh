@@ -5,7 +5,6 @@ set -euo pipefail
 
 usage() {
     echo "Usage: $0 <fmriprep_jobs_root> <id_list.csv> <output.tsv> <mni_t1.nii.gz> <mni_mask.nii.gz> [work_dir]" >&2
-    echo "Optional env: FMRIPREP_VERSION (default: 25-1-1)" >&2
 }
 
 if (( $# < 5 || $# > 6 )); then
@@ -20,7 +19,6 @@ mni="$4"
 mni_mask="$5"
 wdir="${6:-$(dirname "$output_file")/work_registration_qc}"
 log_file="${output_file%.*}.errors.log"
-fmriprep_version="${FMRIPREP_VERSION:-25-1-1}"
 
 mkdir -p "$(dirname "$output_file")" "$wdir"
 : > "$log_file"
@@ -43,8 +41,14 @@ while IFS=',' read -r sid session _; do
     session="${session%$'\r'}"
     [[ "$sid" == "sub_id" || -z "$sid" ]] && continue
 
-    echo "Processing $sid $session"
-    job_dir="${path_fmriprep}/${sid}_${session}_fmriprep-${fmriprep_version}"
+    matches=("${path_fmriprep}/${sid}_${session}_fmriprep-"*)
+
+    if (( ${#matches[@]} != 1 )) || [[ ! -d "${matches[0]}" ]]; then
+        echo "Expected exactly one fMRIPrep folder for $sid $session"
+        continue
+    fi
+
+    job_dir="${matches[0]}"
     fmriprep_dir="${job_dir}/fmriprep/${sid}/${session}"
     [[ -d "$fmriprep_dir" ]] || fmriprep_dir="${job_dir}/${sid}/${session}"
 
