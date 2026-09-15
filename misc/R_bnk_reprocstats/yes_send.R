@@ -151,9 +151,14 @@ old_qc_sheet <- old_qc_sheet %>%
   rename(nmi_boldt1 = nmi_t1_bold_masked)
 # do a merge
 final_qc_sheet <- bind_rows(rosmap_qc_yes_new, old_qc_sheet)
+
 # sort by sub_ses
 final_qc_sheet <- final_qc_sheet %>%
   arrange(sub_ses)
+
+# issue a count of unique sub_ses in final_qc_sheet
+length(unique(final_qc_sheet$sub_ses))
+
 #remove sub_ses
 final_qc_sheet <- final_qc_sheet %>%
   select(-sub_ses)
@@ -190,8 +195,6 @@ final_qc_sheet <- final_qc_sheet %>%
 
 write_csv(final_qc_sheet, "qc_sheet_april2026.csv")
 
-# issue a count of unique sub_ses in final_qc_sheet
-length(unique(final_qc_sheet$sub_ses))
 ID_yes <- dropout_composite %>%
   select(sub_ses)
 # save without header

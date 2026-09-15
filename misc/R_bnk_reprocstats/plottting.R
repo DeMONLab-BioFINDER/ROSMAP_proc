@@ -168,9 +168,6 @@ nmi_2511 <- nmi_2511 %>%
 # create new df by merging the two by intersection subses
 nmi_df <- inner_join(nmi_2511, nmi_2525, by = "sub_ses")
 write_csv(nmi_df, "/Users/ga0034de/Documents/R_projs/priority_rosmap/nmi_comparison_v2511_v2525.csv")
-write_csv(dice_df, "/Users/ga0034de/Documents/R_projs/priority_rosmap/dice_comparison_v2511_v2525.csv")
-write_csv(count_covg_df, "/Users/ga0034de/Documents/R_projs/priority_rosmap/count_covg_comparison_v2511_v2525.csv")
-
 
 nmi_df |>
   pivot_longer(
@@ -423,6 +420,8 @@ dice_v2511 <- rosmap_qc_priority %>%
 #merge the two
 dice_df <- inner_join(dice_v2511, dice_v2525, by = c("code" = "sub_ses"))
 dice_df <- inner_join(dice_df, yes_no, by = c("code" = "sub_ses"))
+
+write_csv(dice_df, "/Users/ga0034de/Documents/R_projs/priority_rosmap/dice_comparison_v2511_v2525.csv")
 
 dice_df |>
   pivot_longer(
@@ -851,6 +850,7 @@ plot_before_after_interactive(
   df = dice_df,
   before_col = v2511_dice,
   after_col = v2525_dice,
+  id_col = code,
   x_label = NULL,
   y_label = "Dice score",
   title = "Dice score before vs after"
@@ -860,6 +860,7 @@ plot_before_after(
   df = dice_df,
   before_col = v2511_dice,
   after_col = v2525_dice,
+  id_col = code,
   y_label = "Dice score",
   title = "Dice score before vs after"
 )
@@ -896,9 +897,13 @@ count_covg_v2525 <- read_tsv("v2525_count_non-coverage_156parcels_priorityl.tsv"
 count_covg_df <- inner_join(count_covg_v2511, count_covg_v2525, by = "sub_ses") %>%
   rename(count_covg_v2511 = 2,
          count_covg_v2525 = 3)
+
 # add visual rating 
 count_covg_df <- count_covg_df %>%
   left_join(yes_no, by = "sub_ses")
+
+write_csv(count_covg_df, "/Users/ga0034de/Documents/R_projs/priority_rosmap/count_covg_comparison_v2511_v2525.csv")
+
 plot_before_after(
   df = count_covg_df,
   before_col = count_covg_v2511,

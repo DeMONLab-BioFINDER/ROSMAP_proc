@@ -19,3 +19,4 @@ analysis/sheets/*
 analysis/.DS_Store
 .DS_Store
 analysis/outputs/.DS_Store
+misc/R_bnk_reprocstats/yes_send.R

@@ -285,14 +285,14 @@ count_covg_df_2 <- count_covg_df_2 %>%
     count_covg_nobbrfreesurf2525 = zero_count
   )
 
-plot_before_after(
-  df = count_covg_df,
-  before_col = count_covg_v2511,
-  after_col = count_covg_v2525,
-  id_col = sub_ses,
-  y_label = "NA parcels count",
-  title = "count of NA parcels per ID"
-)
+# plot_before_after(
+#   df = count_covg_df,
+#   before_col = count_covg_v2511,
+#   after_col = count_covg_v2525,
+#   id_col = sub_ses,
+#   y_label = "NA parcels count",
+#   title = "count of NA parcels per ID"
+# )
 
 plot_before_after <- function(df, before_col, middle_col, after_col, id_col,
                               y_label = NULL, title = NULL) {
@@ -315,7 +315,7 @@ plot_before_after <- function(df, before_col, middle_col, after_col, id_col,
         !!after_name  := "nobbr_v2525"
       ),
       version = factor(version, levels = c("bbr_v2511", "bbr_v2525", "nobbr_v2525")),
-      rating_plot = if_else(version == "v2525", visual_rating, NA_character_)
+      rating_plot = if_else(version == "nobbr_v2525", visual_rating, NA_character_)
     ) |>
     ggplot(aes(x = version, y = value)) +
     geom_boxplot(outlier.shape = NA, alpha = 0.4) +

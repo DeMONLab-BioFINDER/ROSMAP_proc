@@ -22,10 +22,17 @@ mask_gm="/Users/ga0034de/Desktop/individual_atlases/mask_gm/${sub_ses}_space-MNI
 #  exit 0
 #fi
 
-probseg_gm=$(find "." \
+mkdir -p "$(dirname "$mask_gm")"
+
+probseg_gm=$(find "$fmriprep_dir" \
   -type f \
   -path "*_space-MNI152NLin6Asym_res-2_label-GM_probseg.nii.gz" \
   -print -quit)
+
+if [[ -z "$probseg_gm" ]]; then
+  echo "ERROR: GM probability segmentation not found for $sub_ses" >&2
+  exit 1
+fi
 
 
 # ------ create a GM mask
@@ -34,7 +41,7 @@ fslmaths "$probseg_gm" -thr 0.3 -bin "$mask_gm"
 echo $mask_gm
 
 # ------ synchronize necessary files for xcp_d
-sid_atlas_dir="/Users/ga0034de/Desktop/individual_atlases/${sub_ses}_400atlases"
+sid_atlas_dir="individual_atlases/${sub_ses}_400atlases"
 mkdir -p "$sid_atlas_dir"
 #dir200="${sid_atlas_dir}/schaefer_supplemented/atlas-Schaefer200TianS2Cereb"
 dir400="${sid_atlas_dir}"
