@@ -630,7 +630,7 @@ ec_pairwise_from_models <- function(
         )
       )
 
-
+      # Identify the test-statistic column, which may be "t.ratio" or "z.ratio" depending on the model type.
       stat_col <- intersect(
         c("t.ratio", "z.ratio"),
         names(contrasts_raw)
