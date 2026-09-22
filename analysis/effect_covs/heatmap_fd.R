@@ -1,524 +1,148 @@
-# ============================================================
-# FD-effect connectivity heatmaps
+# Prepare longitudinal FD-effect results for heatmap plotting.
 #
-# Two 7 x 7 matrices:
-#
-#   1. All observations
-#   2. FD filtered
-#
-# Diagonal:
-#   within-network FD beta
-#
-# Off-diagonal:
-#   between-network FD beta
-#
-# Fill:
-#   beta_fd
-#
-# Labels:
-#   beta + FDR significance
-# ============================================================
+# This is the ONLY stage that applies multiple-comparison correction to the FD
+# results. The 7 within-network diagonal tests and 21 unique between-network
+# tests are combined into one 28-test family. Pre-FD and post-FD analyses are
+# corrected separately.
 
+.script_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+.script_dir <- if (length(.script_arg)) {
+  dirname(normalizePath(sub("^--file=", "", .script_arg[[1]]), mustWork = FALSE))
+} else {
+  getwd()
+}
+.paths_candidates <- unique(c(
+  file.path("analysis", "paths.R"),
+  file.path(.script_dir, "paths.R"),
+  file.path(.script_dir, "..", "paths.R"),
+  "paths.R",
+  file.path("..", "paths.R")
+))
+.paths_file <- .paths_candidates[file.exists(.paths_candidates)][1]
+if (is.na(.paths_file)) stop("Could not locate analysis/paths.R")
+source(.paths_file)
+source(file.path(ANALYSIS_DIR, "effect_covs", "covs_utils.R"))
+rm(.script_arg, .script_dir, .paths_candidates, .paths_file)
 
-library(ggplot2)
-library(dplyr)
-library(readr)
-library(tidyr)
-library(stringr)
-library(patchwork)
+network_order <- target_cols
+out_dir <- output_dir("fd_heatmaps")
 
-
-# ============================================================
-# 1. Input / output
-# ============================================================
-
-within_all_file <- file.path(
-  output_dir("fd_within_longitudinal"),
-  "fd_effects_withinconn_all_modelresults.csv"
+files <- list(
+  pre_within = require_file(
+    file.path(output_dir("fd_within_longitudinal"), "fd_effects_withinconn_all_modelresults.csv")
+  ),
+  post_within = require_file(
+    file.path(output_dir("fd_within_longitudinal"), "fd_effects_withinconn_fd_filtered_modelresults.csv")
+  ),
+  pre_between = require_file(
+    file.path(output_dir("fd_between_longitudinal"), "fd_effects_betweenconn_all_modelresults.csv")
+  ),
+  post_between = require_file(
+    file.path(output_dir("fd_between_longitudinal"), "fd_effects_betweenconn_fd_filtered_modelresults.csv")
+  )
 )
 
-within_filtered_file <- file.path(
-  output_dir("fd_within_longitudinal"),
-  "fd_effects_withinconn_fd_filtered_modelresults.csv"
-)
+make_unique_fd_cells <- function(within_file, between_file, filter_status) {
+  within <- readr::read_csv(within_file, show_col_types = FALSE)
+  between <- readr::read_csv(between_file, show_col_types = FALSE)
 
-between_all_file <- file.path(
-  output_dir("fd_between_longitudinal"),
-  "fd_effects_betweenconn_all_modelresults.csv"
-)
+  if (!all(c("network", "beta_fd", "t_val_fd", "p_fd") %in% names(within))) {
+    stop("Within-network FD results are missing required raw columns.")
+  }
+  if (!all(c("network_combo", "beta_fd", "t_val_fd", "p_fd") %in% names(between))) {
+    stop("Between-network FD results are missing required raw columns.")
+  }
 
-between_filtered_file <- file.path(
-  output_dir("fd_between_longitudinal"),
-  "fd_effects_betweenconn_fd_filtered_modelresults.csv"
-)
-
-
-out_dir <- output_dir(
-  "fd_heatmaps"
-)
-
-
-# ============================================================
-# 2. Network order
-# ============================================================
-
-network_order <- c(
-  "Vis",
-  "SomMot",
-  "DorsAttn",
-  "SalVentAttn",
-  "Limbic",
-  "Cont",
-  "Default"
-)
-
-
-# ============================================================
-# 3. Read results
-# ============================================================
-
-within_all <- read_csv(
-  within_all_file,
-  show_col_types = FALSE
-)
-
-within_filtered <- read_csv(
-  within_filtered_file,
-  show_col_types = FALSE
-)
-
-between_all <- read_csv(
-  between_all_file,
-  show_col_types = FALSE
-)
-
-between_filtered <- read_csv(
-  between_filtered_file,
-  show_col_types = FALSE
-)
-
-
-# ============================================================
-# 4. Build one complete 7 x 7 FD matrix
-# ============================================================
-
-make_fd_matrix <- function(
-    within_results,
-    between_results
-) {
-
-  # ----------------------------------------------------------
-  # Diagonal: WITHIN-network effects
-  # ----------------------------------------------------------
-
-  diagonal <- within_results %>%
-
-    mutate(
-      network = as.character(network),
-
-      network = str_replace(
-        network,
-        "Network",
-        ""
-      ),
-
-      beta_fd = as.numeric(beta_fd),
-
-      q_fd = as.numeric(q_fd),
-
-      sig_fd = ifelse(
-        is.na(sig_fd),
-        "",
-        sig_fd
-      )
-    ) %>%
-
+  diagonal <- within %>%
+    mutate(network = stringr::str_replace(as.character(network), "Network$", "")) %>%
     transmute(
+      filter_status = filter_status,
+      connection_type = "within",
+      measure = network,
       row_net = network,
       col_net = network,
-      beta_fd = beta_fd,
-      q_fd = q_fd,
-      sig_fd = sig_fd,
-      connection_type = "Within"
+      beta_fd = as.numeric(beta_fd),
+      t_val_fd = as.numeric(t_val_fd),
+      p_fd = as.numeric(p_fd)
     )
 
-
-  # ----------------------------------------------------------
-  # Off-diagonal: BETWEEN-network effects
-  # ----------------------------------------------------------
-
-  between_clean <- between_results %>%
-
-    mutate(
-      network_combo = as.character(
-        network_combo
-      ),
-
-      beta_fd = as.numeric(beta_fd),
-
-      q_fd = as.numeric(q_fd),
-
-      sig_fd = ifelse(
-        is.na(sig_fd),
-        "",
-        sig_fd
-      )
-    ) %>%
-
-    separate(
+  off_diagonal <- between %>%
+    mutate(network_combo = as.character(network_combo)) %>%
+    tidyr::separate(
       network_combo,
-      into = c(
-        "network1",
-        "network2"
-      ),
+      into = c("network1", "network2"),
       sep = "_to_",
       remove = FALSE,
       fill = "right"
     ) %>%
-
     mutate(
-      network1 = str_replace(
-        network1,
-        "Network",
-        ""
-      ),
-
-      network2 = str_replace(
-        network2,
-        "Network",
-        ""
-      )
+      network1 = stringr::str_replace(network1, "Network$", ""),
+      network2 = stringr::str_replace(network2, "Network$", ""),
+      index1 = match(network1, network_order),
+      index2 = match(network2, network_order)
     )
 
+  if (any(is.na(off_diagonal$index1) | is.na(off_diagonal$index2))) {
+    stop("Unknown network name found in between-network FD results.")
+  }
 
-  # Original orientation
-  between_1 <- between_clean %>%
-
+  off_diagonal <- off_diagonal %>%
     transmute(
-      row_net = network1,
-      col_net = network2,
-      beta_fd = beta_fd,
-      q_fd = q_fd,
-      sig_fd = sig_fd,
-      connection_type = "Between"
+      filter_status = filter_status,
+      connection_type = "between",
+      measure = network_combo,
+      row_net = ifelse(index1 > index2, network1, network2),
+      col_net = ifelse(index1 > index2, network2, network1),
+      beta_fd = as.numeric(beta_fd),
+      t_val_fd = as.numeric(t_val_fd),
+      p_fd = as.numeric(p_fd)
     )
 
+  out <- bind_rows(diagonal, off_diagonal)
 
-  # Mirror across diagonal
-  between_2 <- between_clean %>%
+  if (nrow(out) != 28L) {
+    stop("FD family '", filter_status, "' has ", nrow(out), " rows; expected 28.")
+  }
+  if (any(is.na(out$p_fd))) {
+    stop("FD family '", filter_status, "' contains NA p-values.")
+  }
+  duplicates <- out %>% count(row_net, col_net, name = "n") %>% filter(n != 1L)
+  if (nrow(duplicates) > 0) {
+    print(duplicates, n = Inf)
+    stop("Duplicate cells found in FD family '", filter_status, "'.")
+  }
 
-    transmute(
-      row_net = network2,
-      col_net = network1,
-      beta_fd = beta_fd,
-      q_fd = q_fd,
-      sig_fd = sig_fd,
-      connection_type = "Between"
-    )
+  out
+}
 
-
-  # ----------------------------------------------------------
-  # Combine within + between
-  # ----------------------------------------------------------
-
-  matrix_df <- bind_rows(
-    diagonal,
-    between_1,
-    between_2
+fd_unique <- bind_rows(
+  make_unique_fd_cells(files$pre_within, files$pre_between, "pre"),
+  make_unique_fd_cells(files$post_within, files$post_between, "post")
+) %>%
+  group_by(filter_status) %>%
+  mutate(
+    fdr_family_n = n(),
+    q_fdr = stats::p.adjust(p_fd, method = "BH"),
+    sig_fdr = ec_sig_from_p(q_fdr)
   ) %>%
+  ungroup()
 
-    distinct(
-      row_net,
-      col_net,
-      .keep_all = TRUE
-    ) %>%
+family_summary <- fd_unique %>%
+  group_by(filter_status) %>%
+  summarise(n_tests = n(), .groups = "drop")
 
-    mutate(
-
-      cell_label = ifelse(
-        is.na(beta_fd),
-        "",
-        paste0(
-          sprintf(
-            "%.3f",
-            beta_fd
-          ),
-          sig_fd
-        )
-      ),
-
-      row_net = factor(
-        row_net,
-        levels = rev(network_order)
-      ),
-
-      col_net = factor(
-        col_net,
-        levels = network_order
-      )
-    )
-
-
-  # ----------------------------------------------------------
-  # Force complete 7 x 7 matrix
-  # ----------------------------------------------------------
-
-  matrix_full <- expand_grid(
-
-    row_net = factor(
-      rev(network_order),
-      levels = rev(network_order)
-    ),
-
-    col_net = factor(
-      network_order,
-      levels = network_order
-    )
-
-  ) %>%
-
-    left_join(
-      matrix_df,
-      by = c(
-        "row_net",
-        "col_net"
-      )
-    )
-
-
-  matrix_full
+if (any(family_summary$n_tests != 28L)) {
+  print(family_summary, n = Inf)
+  stop("Each FD filtering status must contain exactly 28 tests.")
 }
 
+print(family_summary, n = Inf)
 
-# ============================================================
-# 5. Create ALL and FD-filtered matrices
-# ============================================================
-
-matrix_all <- make_fd_matrix(
-  within_results = within_all,
-  between_results = between_all
+readr::write_csv(
+  fd_unique,
+  file.path(out_dir, "fd_effects_longitudinal_fdr_unique.csv")
 )
-
-
-matrix_filtered <- make_fd_matrix(
-  within_results = within_filtered,
-  between_results = between_filtered
+readr::write_csv(
+  family_summary,
+  file.path(out_dir, "fd_fdr_family_summary.csv")
 )
-
-
-# ============================================================
-# 6. Shared beta limits
-# ============================================================
-# Important: same colour represents same beta in both plots.
-
-all_betas <- c(
-  matrix_all$beta_fd,
-  matrix_filtered$beta_fd
-)
-
-all_betas <- all_betas[
-  is.finite(all_betas)
-]
-
-max_abs_beta <- max(
-  abs(all_betas)
-)
-
-if (max_abs_beta == 0) {
-  max_abs_beta <- 1
-}
-
-fill_limits <- c(
-  -max_abs_beta,
-  max_abs_beta
-)
-
-
-# ============================================================
-# 7. Heatmap function
-# ============================================================
-
-plot_fd_matrix <- function(
-    matrix_df,
-    title,
-    fill_limits
-) {
-
-  ggplot(
-    matrix_df,
-    aes(
-      x = col_net,
-      y = row_net,
-      fill = beta_fd
-    )
-  ) +
-
-    geom_tile(
-      color = "white",
-      linewidth = 0.7
-    ) +
-
-    geom_text(
-      aes(
-        label = cell_label
-      ),
-      size = 6,
-      color = "black",
-      na.rm = TRUE
-    ) +
-
-    scale_fill_gradient2(
-      low = "#2166AC",
-      mid = "white",
-      high = "#B2182B",
-      midpoint = 0,
-      limits = fill_limits,
-      na.value = "grey90",
-      name = expression(beta[FD])
-    ) +
-
-    coord_fixed() +
-
-    labs(
-      title = title,
-      subtitle =
-        "Diagonal = within-network | Off-diagonal = between-network",
-      x = NULL,
-      y = NULL
-    ) +
-
-    theme_minimal(
-      base_size = 15
-    ) +
-
-    theme(
-
-      panel.grid = element_blank(),
-
-      axis.text.x = element_text(
-        angle = 45,
-        hjust = 1,
-        face = "bold",
-        size = 12
-      ),
-
-      axis.text.y = element_text(
-        face = "bold",
-        size = 12
-      ),
-
-      plot.title = element_text(
-        face = "bold",
-        hjust = 0.5,
-        size = 18
-      ),
-
-      plot.subtitle = element_text(
-        hjust = 0.5,
-        size = 11
-      ),
-
-      legend.position = "right"
-    )
-}
-
-
-# ============================================================
-# 8. Plot
-# ============================================================
-
-p_all <- plot_fd_matrix(
-  matrix_df = matrix_all,
-  title = "All observations",
-  fill_limits = fill_limits
-)
-
-
-p_filtered <- plot_fd_matrix(
-  matrix_df = matrix_filtered,
-  title = paste0(
-    "FD filtered (mean FD < ",
-    FD_THRESHOLD,
-    ")"
-  ),
-  fill_limits = fill_limits
-)
-
-
-print(p_all)
-
-print(p_filtered)
-
-
-# ============================================================
-# 9. Combined figure
-# ============================================================
-
-p_combined <-
-  p_all +
-  p_filtered +
-  plot_layout(
-    ncol = 2,
-    guides = "collect"
-  ) &
-  theme(
-    legend.position = "right"
-  )
-
-
-print(
-  p_combined
-)
-
-
-# ============================================================
-# 10. Save
-# ============================================================
-
-ggsave(
-  file.path(
-    out_dir,
-    "fd_heatmap_all.pdf"
-  ),
-  plot = p_all,
-  width = 9,
-  height = 8,
-  units = "in"
-)
-
-
-ggsave(
-  file.path(
-    out_dir,
-    "fd_heatmap_fd_filtered.pdf"
-  ),
-  plot = p_filtered,
-  width = 9,
-  height = 8,
-  units = "in"
-)
-
-
-ggsave(
-  file.path(
-    out_dir,
-    "fd_heatmaps_all_vs_fd_filtered.pdf"
-  ),
-  plot = p_combined,
-  width = 47,
-  height = 25,
-  units = "cm"
-)
-
-
-ggsave(
-  file.path(
-    out_dir,
-    "fd_heatmaps_all_vs_fd_filtered.svg"
-  ),
-  plot = p_combined,
-  width = 50,
-  height = 50,
-  units = "cm"
-)
-

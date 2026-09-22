@@ -359,8 +359,8 @@ ec_make_pairwise_brackets <- function(
     measure_col,
     value_col,
     group_col = covariate,
-    p_col = "p_tukey",
-    sig_col = "sig_tukey"
+    p_col = "q_fdr",
+    sig_col = "sig_fdr"
 ) {
   if (!all(c(measure_col, value_col, group_col) %in% names(plot_data))) {
     stop("Plot data are missing required bracket columns.")
@@ -423,7 +423,7 @@ ec_make_pairwise_brackets <- function(
   annotations
 }
 
-# Print pairwise statistics without rounding the underlying result object.
+# Print raw pairwise statistics without rounding the underlying result object.
 ec_print_pairwise_table <- function(
     pairwise_results,
     title
@@ -433,37 +433,14 @@ ec_print_pairwise_table <- function(
   cat(title, "\n")
   cat("============================================================\n")
 
-  pairwise_results %>%
-    dplyr::mutate(
-      estimate = round(
-        estimate,
-        4
-      ),
+  display <- pairwise_results
 
-      se = round(
-        se,
-        4
-      ),
+  if ("estimate" %in% names(display)) display$estimate <- round(display$estimate, 4)
+  if ("se" %in% names(display)) display$se <- round(display$se, 4)
+  if ("statistic" %in% names(display)) display$statistic <- round(as.numeric(display$statistic), 3)
+  if ("p_raw" %in% names(display)) display$p_raw <- signif(display$p_raw, 3)
 
-      statistic = round(
-        as.numeric(statistic),
-        3
-      ),
-
-      p_raw = signif(
-        p_raw,
-        3
-      ),
-
-      p_tukey = signif(
-        p_tukey,
-        3
-      )
-    ) %>%
-    tibble::as_tibble() %>%
-    print(
-      n = Inf
-    )
+  print(tibble::as_tibble(display), n = Inf)
 }
 
 # Print FD-model statistics without modifying values subsequently written to CSV.
@@ -480,8 +457,7 @@ ec_print_fd_model_table <- function(model_results, title, measure_col = NULL) {
 
   preferred <- c(
     measure_col,
-    "beta_fd", "t_val_fd",
-    "p_fd", "q_fd", "sig_fd"
+    "beta_fd", "t_val_fd", "p_fd"
   )
   preferred <- preferred[!is.na(preferred) & preferred %in% names(display)]
   if (length(preferred)) display <- display[, preferred, drop = FALSE]
@@ -492,8 +468,8 @@ ec_print_fd_model_table <- function(model_results, title, measure_col = NULL) {
   if ("t_val_fd" %in% names(display)) {
     display$t_val_fd <- round(display$t_val_fd, 3)
   }
-  for (column in intersect(c("p_fd", "q_fd"), names(display))) {
-    display[[column]] <- signif(display[[column]], 3)
+  if ("p_fd" %in% names(display)) {
+    display$p_fd <- signif(display$p_fd, 3)
   }
 
   print(tibble::as_tibble(display), n = Inf)
@@ -582,12 +558,12 @@ ec_get_fitted_data <- function(
   out
 }
 
-# Estimate pairwise marginal-mean contrasts for each connectivity outcome.
+# Estimate unadjusted pairwise marginal-mean contrasts for each connectivity outcome.
 #
-# Returns:
-#   p_raw    - unadjusted contrast p-value
-#   p_tukey  - Tukey-adjusted p-value within each connectivity outcome
-
+# No multiple-comparison correction is performed here. Correction is deferred
+# to the heatmap-preparation stage, where the complete 7 x 7 connectivity
+# family (28 unique cells) can be corrected jointly across all contrasts for
+# the covariate.
 ec_pairwise_from_models <- function(
     models,
     covariate,
@@ -608,12 +584,10 @@ ec_pairwise_from_models <- function(
         emm_args$lmer.df <- "satterthwaite"
       }
 
-
       emm <- do.call(
         emmeans::emmeans,
         emm_args
       )
-
 
       contrasts_raw <- as.data.frame(
         pairs(
@@ -622,20 +596,10 @@ ec_pairwise_from_models <- function(
         )
       )
 
-
-      contrasts_tukey <- as.data.frame(
-        pairs(
-          emm,
-          adjust = "tukey"
-        )
-      )
-
-      # Identify the test-statistic column, which may be "t.ratio" or "z.ratio" depending on the model type.
       stat_col <- intersect(
         c("t.ratio", "z.ratio"),
         names(contrasts_raw)
       )[1]
-
 
       if (is.na(stat_col)) {
         stop(
@@ -644,56 +608,26 @@ ec_pairwise_from_models <- function(
         )
       }
 
-
       out <- tibble::tibble(
         measure = measure,
         covariate = covariate,
         contrast = contrasts_raw$contrast,
-
         estimate = contrasts_raw$estimate,
         se = contrasts_raw$SE,
-
-        df = if (
-          "df" %in% names(contrasts_raw)
-        ) {
-          contrasts_raw$df
-        } else {
-          NA_real_
-        },
-
+        df = if ("df" %in% names(contrasts_raw)) contrasts_raw$df else NA_real_,
         statistic = contrasts_raw[[stat_col]],
-
-        p_raw = contrasts_raw$p.value,
-        p_tukey = contrasts_tukey$p.value
+        p_raw = contrasts_raw$p.value
       )
 
-
       names(out)[1] <- measure_col
-
       out
     }
   )
-
-
-  # old approach, discarded FDR
-  # BH-FDR across all connectivity outcomes and pairwise
-  # contrasts for this covariate/analysis dataset.
-  results$q_across <- stats::p.adjust(
-    results$p_raw,
-    method = "BH"
-  )
-
-
-  results$sig_tukey <- ec_sig_from_p(
-    results$p_tukey
-  )
-
 
   results[[measure_col]] <- factor(
     results[[measure_col]],
     levels = measure_levels
   )
-
 
   results
 }
@@ -745,8 +679,9 @@ ec_partial_residuals_from_models <- function(
   out
 }
 
-# Extract the mean-FD coefficient from each fitted model and apply BH correction
-# across the connectivity measures in that analysis family.
+# Extract the raw mean-FD coefficient and unadjusted p-value from each fitted model.
+# No FDR correction is performed here; correction is deferred until the
+# within- and between-network results are combined into one 28-test family.
 ec_fd_results_from_models <- function(
     models,
     measure_col,
@@ -772,14 +707,6 @@ ec_fd_results_from_models <- function(
     }
   )
 
-  results$q_fd <- stats::p.adjust(results$p_fd, method = "BH")
-  results$sig_fd <- ec_sig_from_p(results$q_fd)
-  results$label <- sprintf(
-    "β = %.3f %s\nq = %.3g",
-    results$beta_fd,
-    results$sig_fd,
-    results$q_fd
-  )
   results[[measure_col]] <- factor(
     results[[measure_col]],
     levels = measure_levels

@@ -4,161 +4,160 @@ This directory contains the statistical analyses used to assess demographic,
 acquisition, diagnosis, and motion effects on within- and between-network
 functional connectivity.
 
-## Shared configuration and utilities
+## Statistical workflow
 
-Entry-point scripts source, in order:
+The workflow is deliberately split into three stages:
 
-1. `analysis/paths.R` — repository paths, output paths, and the canonical
-   framewise-displacement threshold (`FD_THRESHOLD <- 0.25`).
-2. `analysis/effect_covs/covs_utils.R` — general packages, network names/colours, network
-   pair names, and the list of categorical covariates. And other helpers specific to this folder's scripts.
+1. **Fit models and export raw statistics only.**
+2. **Combine within- and between-network results into complete connectivity
+   families and apply BH-FDR once.**
+3. **Plot only from the corrected result tables.**
 
-The local `covs_utils.R` contains repeated programming infrastructure only: baseline
-selection, strict FD filtering, long-format conversion, model loops, emmeans
-extraction, partial-residual extraction, FD coefficient/FDR tables, and common
-plotting/saving helpers. Statistical formulas remain in the individual scripts.
+There is no Tukey adjustment, BH-FDR adjustment, significance-star generation,
+or plotting inside the model-fitting scripts.
 
-## Input
+## Shared configuration
 
-All model scripts use the prepared connectivity/demographics table returned by:
+All entry-point scripts source:
 
-```r
-demos("demos_conn.csv")
-```
-The table is the result of running `analysis/0_compute_fc_meanconn.py` to get 
-the connectivity scores, and `analysis/1_prepare_analysis_table.R` to merge it 
-with demographics information.
+1. `analysis/paths.R` for input/output paths and `FD_THRESHOLD <- 0.25`.
+2. `analysis/effect_covs/covs_utils.R` for network definitions, factor levels,
+   data preparation, model loops, raw emmeans contrasts, and raw FD coefficient
+   extraction.
 
-The scripts expect the seven within-network columns defined by `target_cols`,
-the 21 between-network columns defined by `target_combos`, and the covariates
-used by the formulas below.
+The seven networks are:
 
-## Motion-exclusion rule
+`Vis`, `SomMot`, `DorsAttn`, `SalVentAttn`, `Limbic`, `Cont`, and `Default`.
 
-Mean framewise-displacement (FD) threshold for exclusion:
+They define 28 unique connectivity cells per matrix:
 
-```r
-mean_FD < 0.25
-```
+- 7 within-network diagonal cells.
+- 21 unique between-network cells in one triangle.
 
-All post-filtering samples in this directory are created through
-`ec_apply_fd_filter()`. Pre-filtering analyses retain
-the full available FD range by design.
+The opposite triangle is a visual mirror only and is never counted as an
+additional statistical test.
 
-## Entry-point scripts
+## Covariate model scripts
 
 | Script | Analysis |
 |---|---|
-| `effect_covariates_within_network_baseline.R` | Baseline categorical-covariate effects on the 7 within-network measures |
-| `effect_covariates_between_network_baseline.R` | Baseline categorical-covariate effects on the 21 between-network measures |
-| `effect_covariates_within_network_longitudinal.R` | Longitudinal categorical-covariate effects on within-network connectivity |
-| `effect_covariates_between_network_longitudinal.R` | Longitudinal categorical-covariate effects on between-network connectivity |
-| `effect_fd_within_network_baseline.R` | Baseline adjusted association between mean FD and within-network connectivity |
-| `effect_fd_between_network_baseline.R` | Baseline adjusted association between mean FD and between-network connectivity |
-| `effect_fd_within_network_longitudinal.R` | Longitudinal adjusted FD sensitivity analysis for within-network connectivity |
-| `effect_fd_between_network_longitudinal.R` | Longitudinal adjusted FD sensitivity analysis for between-network connectivity |
-| `plot_covariate_effect_heatmaps.R` | Heatmaps from the longitudinal categorical-covariate result tables |
-| `utils.R` | Shared implementation helpers for this directory; not analysis |
+| `effect_covariates_within_network_baseline.R` | Baseline within-network covariate models |
+| `effect_covariates_between_network_baseline.R` | Baseline between-network covariate models |
+| `effect_covariates_within_network_longitudinal.R` | Longitudinal within-network covariate models |
+| `effect_covariates_between_network_longitudinal.R` | Longitudinal between-network covariate models |
 
-Baseline scripts choose the earliest numeric session parsed from `ses_id` for
-each participant. Longitudinal scripts retain repeated observations and use a
-participant random intercept where shown below. 
-Only longitudinal analyses are reported in the manuscript.
+Covariate scripts fit one unfiltered analysis dataset only. They do **not** fit
+a second post-FD dataset. Mean FD remains an adjustment covariate in the model.
 
-## Model specifications
-
-### Baseline
+Baseline model:
 
 ```r
 connectivity ~ mean_FD + msex + site + age_scandate +
   eyes + dcfdx + syn_bin
 ```
 
-### Longitudinal
+Longitudinal model:
 
 ```r
 connectivity ~ mean_FD + msex + site + age_scandate +
   eyes + dcfdx + syn_bin + (1 | sub_id)
 ```
 
-These models are fitted independently to each connectivity
-outcome, whether between-network combinations or within-network regions.
-Mixed-effects models have participant-specific random intercepts.
+For categorical covariates, `emmeans` pairwise contrasts are requested with
+`adjust = "none"`. The exported tables therefore contain raw quantities only,
+including `estimate`, `se`, `df`, `statistic`, and `p_raw`.
 
-Each connectivity-outcome model is fitted once per pre/post-FD dataset and reused for estimated marginal means, population-level fitted-value plots, and partial-residual analyses.
+## Covariate FDR families
 
-## Multiple-comparison handling
+Run `prepare_covariate_effect_heatmaps.R` after the two longitudinal covariate
+model scripts. It combines the 7 within-network and 21 between-network rows
+before any correction is applied.
 
-Categorical covariate analyses retain several inferential quantities because they address different multiple-testing questions and should not be
-interchanged.
+BH-FDR is applied **once per covariate across all of that covariate's pairwise
+level contrasts**. The prespecified family sizes are:
 
-For each categorical covariate, estimated marginal means and pairwise contrasts are obtained using `emmeans`.
+| Covariate | Pairwise contrasts | Tests in FDR family |
+|---|---:|---:|
+| `msex` | 1 | 28 |
+| `eyes` | 1 | 28 |
+| `syn_bin` | 1 | 28 |
+| `dcfdx` | 3 | 84 |
+| `site` | 6 | 168 |
 
-The exported result tables contain:
+The correction script validates these family sizes and writes:
 
-`p_raw`: unadjusted p-value for the pairwise contrast.
-`p_tukey`: Tukey-adjusted p-value for pairwise comparisons within a single
-fitted connectivity outcome.
-`q_across`: Benjamini-Hochberg false-discovery-rate (FDR) adjusted p-value
-across all connectivity outcomes and pairwise contrasts for the corresponding covariate, analysis type, and FD-filtering condition.
+- `covariate_heatmaps/covariate_effects_longitudinal_fdr_unique.csv`
+- `covariate_heatmaps/covariate_fdr_family_summary.csv`
 
-`sig_tukey`: significance label derived from `p_tukey`.
-`sig_across`: significance label derived from `q_across`.
+The corrected table adds `q_fdr` and `sig_fdr`.
 
-Thus, Tukey adjustment controls multiplicity among factor-level comparisons
-within an individual connectivity model, whereas the BH-FDR correction addresses the broader multiplicity introduced by testing the covariate across multiple connectivity outcomes.
+`plot_covariate_effect_heatmaps.R` reads only the corrected table, mirrors the
+21 between-network cells for display, and creates the heatmaps. It performs no
+additional multiple-comparison correction.
 
-Primary significance annotations in the covariate-effect plots and heatmaps use `q_across` / `sig_across`.
+## FD model scripts
 
-Significance labels are:
+| Script | Analysis |
+|---|---|
+| `effect_fd_within_network_baseline.R` | Baseline within-network FD models |
+| `effect_fd_between_network_baseline.R` | Baseline between-network FD models |
+| `effect_fd_within_network_longitudinal.R` | Longitudinal within-network FD models |
+| `effect_fd_between_network_longitudinal.R` | Longitudinal between-network FD models |
 
-`*`: q < 0.05
-`**`: q < 0.01
-`***`: q < 0.001
+Unlike the categorical-covariate analyses, the FD analyses retain two model
+families:
 
-The Tukey-adjusted values are retained in the output tables so within-outcome pairwise inference remains available separately.
+- pre-FD filtering / all observations;
+- post-FD filtering, retaining `mean_FD < 0.25`.
 
-Raw p-values are corrected using the Benjamini-Hochberg procedure across the seven within-network outcomes or the 21 between-network outcomes within the corresponding analysis.
+The model scripts export only `beta_fd`, `t_val_fd`, and raw `p_fd`; they do not
+compute FDR values and they do not plot.
 
+## FD FDR families and heatmaps
 
-## Predicted values and partial residuals
+`heatmap_fd.R` is now the FD correction/preparation stage. It combines the 7
+within-network and 21 unique between-network tests and applies BH-FDR separately
+to:
 
-Longitudinal models include a participant-specific random intercept:
+- the 28 pre-FD tests;
+- the 28 post-FD tests.
 
-(1 | sub_id)
+It writes:
 
-to account for repeated observations within participants.
+- `fd_heatmaps/fd_effects_longitudinal_fdr_unique.csv`
+- `fd_heatmaps/fd_fdr_family_summary.csv`
 
-For visualization, however, longitudinal fitted-value plots use
-population-level fixed-effect predictions. Participant-specific random
-intercepts are excluded from the plotted predictions (`re.form` = NA).
+`plot_fd_heatmaps.R` is the heatmap-only plotting stage. It reads the corrected
+FD table, mirrors the lower-triangle between-network cells for display, and
+plots pre- and post-FD heatmaps with a shared beta scale. It performs no
+correction.
 
-Where partial-residual plots are generated, they likewise use fixed-effect
-predictions for mixed-effects models. These plots are intended to visualize the adjusted relationship between the covariate of interest and connectivity after accounting for the remaining model covariates.
-
-## Heatmaps
-
-`plot_covariate_effect_heatmaps.R` searches recursively below the configured analysis output directory for:
-
-`all_pairwise_results_withinconn_covs_long.csv`
-`all_pairwise_results_betweenconn_covs_long.csv`
-
-Within- and between-network statistics are combined into network-by-network
-heatmaps.
-
-Binary covariates (msex, eyes, and syn_bin) are displayed as individual
-contrast heatmaps.
-
-Site and diagnosis, which contain more than two levels, are displayed as
-lower-triangle contrast grids using the prespecified factor ordering defined in `covs_utils.R`.
-
-Heatmap colour represents the model contrast t-statistic. Pre- and post-FD
-versions of each covariate share the same symmetric t-value limits so that
-colour magnitude is directly comparable across filtering conditions.
-
-Each populated cell displays the t-statistic. Significance stars appended to the statistic are derived from sig_across, and therefore indicate results surviving the across-connectivity Benjamini-Hochberg FDR correction rather than the within-outcome Tukey correction.
+The longitudinal `effect_fd_*` scripts also save their fitted model objects and
+analysis data as RDS files. `plot_fd_effects_corrected.R` uses those saved
+objects together with the final `q_fdr` values to create fitted-value and
+partial-residual FD figures. This keeps all inferential annotations downstream
+of the final correction and avoids refitting the models.
 
 ## Suggested run order
 
-The scripts are analysis entry points rather than one monolithic pipeline. For heatmaps, run both longitudinal categorical scripts first so their result CSVs exist, then run `plot_covariate_effect_heatmaps.R`.
-The FD scripts are independent of the categorical heatmap step.
+For the longitudinal covariate heatmaps:
+
+```text
+effect_covariates_within_network_longitudinal.R
+effect_covariates_between_network_longitudinal.R
+prepare_covariate_effect_heatmaps.R
+plot_covariate_effect_heatmaps.R
+```
+
+For the longitudinal FD heatmaps:
+
+```text
+effect_fd_within_network_longitudinal.R
+effect_fd_between_network_longitudinal.R
+heatmap_fd.R
+plot_fd_heatmaps.R
+plot_fd_effects_corrected.R
+```
+
+Baseline model scripts can be run independently when raw baseline results are
+needed. They do not perform multiple-comparison correction or plotting.
